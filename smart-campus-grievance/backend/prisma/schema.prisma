@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String      @id @default(uuid())
+  email        String      @unique
+  passwordHash String
+  role         String      @default("STUDENT")
+  trustScore   Float       @default(5.0)
+  department   String?
+  createdAt    DateTime    @default(now())
+
+  complaints   Complaint[] @relation("StudentComplaints")
+  assignedTo   Complaint[] @relation("AssignedComplaints")
+  logs         ComplaintLog[] @relation("Logger")
+}
+
+model Complaint {
+  id             String      @id @default(uuid())
+  title          String
+  description    String
+  category       String
+  urgency        String
+  location       String?
+  priority       String      @default("LOW")
+  status         String      @default("OPEN")
+  resolutionTime DateTime?
+  slaDeadline    DateTime?
+  isAnonymous    Boolean     @default(false)
+  studentId      String?
+  assignedToId   String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  student        User?       @relation("StudentComplaints", fields: [studentId], references: [id])
+  assignedTo     User?       @relation("AssignedComplaints", fields: [assignedToId], references: [id])
+  
+  aiAnalysis     ComplaintAiAnalysis?
+  logs           ComplaintLog[]
+}
+
+model ComplaintAiAnalysis {
+  id                  String    @id @default(uuid())
+  complaintId         String    @unique
+  aiSummary           String?
+  sentimentScore      Float?
+  abuseScore          Float?
+  qualityScore        Float?
+  explainableOutput   String?
+  flaggedForModeration Boolean  @default(false)
+
+  complaint           Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+}
+
+model ComplaintLog {
+  id             String   @id @default(uuid())
+  complaintId    String
+  action         String
+  changedById    String?
+  previousStatus String?
+  newStatus      String?
+  timestamp      DateTime @default(now())
+
+  complaint      Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  changedBy      User?     @relation("Logger", fields: [changedById], references: [id])
+}
+
+model SystemPattern {
+  id           String   @id @default(uuid())
+  issueType    String
+  location     String
+  frequency    Int      @default(1)
+  lastDetected DateTime @default(now())
+}
