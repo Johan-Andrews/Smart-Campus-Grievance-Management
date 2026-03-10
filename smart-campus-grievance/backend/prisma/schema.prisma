@@ -26,6 +26,7 @@ model Complaint {
   title          String
   description    String
   category       String
+  department     String?
   urgency        String
   location       String?
   priority       String      @default("LOW")

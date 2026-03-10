@@ -8,6 +8,7 @@ const complaintSchema = z.object({
     title: z.string().min(5),
     description: z.string().min(10),
     category: z.string(), // initial category guess
+    department: z.string().optional(),
     urgency: z.enum(['Low', 'Medium', 'High', 'Critical']),
     location: z.string().optional(),
     isAnonymous: z.boolean().default(false)
@@ -23,7 +24,7 @@ export const submitComplaint = async (req: AuthRequest, res: Response) => {
         const userTrustScore = userRow?.trustScore || 5.0;
 
         // AI Analysis
-        const aiAnalysis = await processComplaintWithAI(data.title, data.description, userTrustScore, data.urgency);
+        const aiAnalysis = await processComplaintWithAI(data.title, data.description, userTrustScore, data.urgency, data.category);
 
         // Create complaint
         const complaint = await prisma.complaint.create({
@@ -31,6 +32,7 @@ export const submitComplaint = async (req: AuthRequest, res: Response) => {
                 title: data.title,
                 description: data.description,
                 category: aiAnalysis.category, // AI overridden category
+                department: data.department,
                 urgency: data.urgency,
                 location: data.location,
                 priority: aiAnalysis.priority,

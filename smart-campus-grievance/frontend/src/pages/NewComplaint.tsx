@@ -7,9 +7,10 @@ const NewComplaint = () => {
     const navigate = useNavigate();
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
-    const [category] = useState('General');
+    const [category, setCategory] = useState('hostel');
     const [urgency, setUrgency] = useState('Low');
     const [location, setLocation] = useState('');
+    const [department, setDepartment] = useState('');
     const [isAnonymous, setIsAnonymous] = useState(false);
 
     const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -34,7 +35,7 @@ const NewComplaint = () => {
         setLoading(true);
         try {
             await api.post('/complaints', {
-                title, description, category, urgency, location, isAnonymous
+                title, description, category, department, urgency, location, isAnonymous
             });
             navigate('/student/dashboard');
         } catch (err) {
@@ -79,6 +80,30 @@ const NewComplaint = () => {
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                                    <select value={category} onChange={e => setCategory(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                        <option value="hostel">Hostel</option>
+                                        <option value="academics">Academics</option>
+                                        <option value="management">Management</option>
+                                        <option value="hod">HOD</option>
+                                        <option value="principal">Principal</option>
+                                    </select>
+                                </div>
+                                {(category === 'hod' || category === 'academics') && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                                        <select required value={department} onChange={e => setDepartment(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                            <option value="">Select Department</option>
+                                            <option value="CSE">CSE</option>
+                                            <option value="CIVIL">CIVIL</option>
+                                            <option value="ECE">ECE</option>
+                                            <option value="EEE">EEE</option>
+                                            <option value="MECH">MECH</option>
+                                            <option value="BARCH">BARCH</option>
+                                        </select>
+                                    </div>
+                                )}
+                                <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Urgency</label>
                                     <select value={urgency} onChange={e => setUrgency(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                         <option>Low</option>
@@ -87,10 +112,11 @@ const NewComplaint = () => {
                                         <option>Critical</option>
                                     </select>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                                    <input type="text" value={location} onChange={e => setLocation(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Optional" />
-                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                                <input type="text" value={location} onChange={e => setLocation(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Optional" />
                             </div>
 
                             <div className="flex items-center space-x-3 pt-2">
