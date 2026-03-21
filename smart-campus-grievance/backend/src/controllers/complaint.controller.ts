@@ -10,6 +10,7 @@ const complaintSchema = z.object({
     title: z.string().min(5),
     description: z.string().min(10),
     category: z.string(), // initial category guess
+    department: z.string().optional(),
     urgency: z.enum(['Low', 'Medium', 'High', 'Critical']),
     location: z.string().optional(),
     isAnonymous: z.boolean().default(false)
@@ -25,12 +26,34 @@ export const submitComplaint = async (req: AuthRequest, res: Response) => {
         const [users] = await connection.execute<RowDataPacket[]>('SELECT trustScore FROM User WHERE id = ?', [userId]);
         const userTrustScore = users[0]?.trustScore || 5.0;
 
+<<<<<<< HEAD
         const aiAnalysis = await processComplaintWithAI(data.title, data.description, userTrustScore, data.urgency);
 
         const complaintId = uuidv4();
         const studentId = data.isAnonymous ? null : userId;
         const now = new Date();
         const slaDeadline = aiAnalysis.slaDeadline ? new Date(aiAnalysis.slaDeadline) : null;
+=======
+        // AI Analysis
+        const aiAnalysis = await processComplaintWithAI(data.title, data.description, userTrustScore, data.urgency, data.category);
+
+        // Create complaint
+        const complaint = await prisma.complaint.create({
+            data: {
+                title: data.title,
+                description: data.description,
+                category: aiAnalysis.category, // AI overridden category
+                department: data.department,
+                urgency: data.urgency,
+                location: data.location,
+                priority: aiAnalysis.priority,
+                slaDeadline: aiAnalysis.slaDeadline,
+                isAnonymous: data.isAnonymous,
+                studentId: data.isAnonymous ? null : userId,
+                status: 'OPEN'
+            }
+        });
+>>>>>>> 5b6a6250f9328cad851720248ed5f64d463ec4db
 
         await connection.execute(
             `INSERT INTO Complaint 

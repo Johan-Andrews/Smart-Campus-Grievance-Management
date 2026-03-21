@@ -36,16 +36,17 @@ export const processComplaintWithAI = async (
     title: string,
     description: string,
     userTrustScore: number,
-    urgency: string
+    urgency: string,
+    userCategory?: string
 ): Promise<AiAnalysisResult> => {
     const content = (title + ' ' + description).toLowerCase();
 
     // 1. Categorization Mock
-    let category = 'General';
-    if (content.match(/(class|exam|professor|grade|faculty)/)) category = 'Academic';
-    else if (content.match(/(wifi|internet|network|router)/)) category = 'IT_Infrastructure';
-    else if (content.match(/(hostel|mess|room|water|food)/)) category = 'Hostel';
-    else if (content.match(/(plumbing|ac|fan|light|building)/)) category = 'Infrastructure';
+    let category = userCategory || 'hostel';
+    if (content.match(/(class|exam|professor|grade|faculty)/)) category = 'academics';
+    else if (content.match(/(wifi|internet|network|router)/)) category = 'management'; // map infrastructure to management for now or keep as is if desired
+    else if (content.match(/(hostel|mess|room|water|food)/)) category = 'hostel';
+    else if (content.match(/(plumbing|ac|fan|light|building)/)) category = 'management';
 
     // 2. Summarization Mock
     const aiSummary = description.substring(0, 100) + '... [Auto-Summarized]';
