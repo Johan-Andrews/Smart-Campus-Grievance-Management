@@ -1,28 +1,22 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import api from '../services/api';
 
 const Register = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [department, setDepartment] = useState('');
     const [role, setRole] = useState('STUDENT');
-    const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
-    const handleRegister = async (e: React.FormEvent) => {
+    const handleRegister = (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        setError('');
-        try {
-            await api.post('/auth/register', { email, password, role, department: role === 'FACULTY' ? department : undefined });
+        // Just navigate to login as requested
+        setTimeout(() => {
             navigate('/login');
-        } catch (err: any) {
-            setError(err.response?.data?.error || 'Registration failed');
-        } finally {
             setLoading(false);
-        }
+        }, 500);
     };
 
     return (
@@ -32,7 +26,6 @@ const Register = () => {
                     <h2 className="text-center text-3xl font-extrabold text-gray-900">Create an Account</h2>
                     <p className="mt-2 text-center text-sm text-gray-600">Smart Campus Grievance Platform</p>
                 </div>
-                {error && <div className="p-3 bg-red-100 text-red-700 rounded-lg text-sm text-center">{error}</div>}
 
                 <form className="mt-8 space-y-6" onSubmit={handleRegister}>
                     <div className="rounded-md shadow-sm space-y-4">

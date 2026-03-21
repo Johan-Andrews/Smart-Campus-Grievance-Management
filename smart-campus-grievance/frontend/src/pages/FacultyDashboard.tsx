@@ -1,23 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
+
+const MOCK_DEPT_COMPLAINTS = [
+    {
+        id: '101',
+        title: 'Projector in LH-1 not working',
+        description: 'The projector turns off automatically after 5 minutes of use.',
+        priority: 'HIGH',
+        status: 'OPEN',
+        isAnonymous: false,
+        student: { email: 'student1@test.com' },
+        createdAt: new Date().toISOString()
+    },
+    {
+        id: '102',
+        title: 'Laboratory Assistant absence',
+        description: 'The lab assistant for the morning session has been absent for 3 days without notice.',
+        priority: 'MEDIUM',
+        status: 'IN_PROGRESS',
+        isAnonymous: true,
+        student: { email: 'hidden@test.com' },
+        createdAt: addDays(new Date(), -2).toISOString()
+    }
+];
 
 const FacultyDashboard = () => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
-    const [complaints, setComplaints] = useState<any[]>([]);
-
-    useEffect(() => {
-        const fetchComplaints = async () => {
-            try {
-                const { data } = await api.get('/complaints');
-                setComplaints(data);
-            } catch (err) { }
-        };
-        fetchComplaints();
-    }, []);
+    const [complaints] = useState<any[]>(MOCK_DEPT_COMPLAINTS);
 
     return (
         <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
