@@ -23,7 +23,9 @@ type HODGrievance = {
 
 type TimelineLog = {
     id: string;
+    complaint_id: string;
     action: string;
+    previous_status: string | null;
     new_status: string;
     timestamp_display: string;
     actor_name: string | null;
@@ -42,7 +44,7 @@ const HODDashboard = () => {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [detail, setDetail]         = useState<HODGrievance | null>(null);
     const [timeline, setTimeline]     = useState<TimelineLog[]>([]);
-    const [detailLoading, setDetailLoading] = useState(false);
+    const [timelinesMap, setTimelinesMap] = useState<Record<string, TimelineLog[]>>({});
 
     const [stats, setStats] = useState({
         open: 0,
@@ -51,7 +53,8 @@ const HODDashboard = () => {
         slaBreaches: 0
     });
 
-    const CSE_DEPT_ID = 'd1000000-0000-0000-0000-000000000001';
+    const DEPT_ID = user?.department_id || 'd1000000-0000-0000-0000-000000000001';
+    const DEPT_CODE = user?.department_code || 'CSE';
 
     const fetchData = useCallback(async () => {
         if (complaints.length === 0) setLoading(true);
@@ -61,7 +64,7 @@ const HODDashboard = () => {
             const { data, error: sbError } = await supabase
                 .from('v_hod_grievances')
                 .select('*')
-                .eq('department_id', CSE_DEPT_ID)
+                .eq('department_id', DEPT_ID)
                 .order('created_at', { ascending: false });
 
             if (sbError) throw sbError;
@@ -80,6 +83,25 @@ const HODDashboard = () => {
 
             setStats(metrics);
 
+            // BATCH FETCH TIMELINES
+            if (grievances.length > 0) {
+                const ids = grievances.map(g => g.id);
+                const { data: allLogs, error: logError } = await supabase
+                    .from('v_complaint_timeline')
+                    .select('*')
+                    .in('complaint_id', ids)
+                    .order('timestamp', { ascending: false });
+
+                if (!logError && allLogs) {
+                    const map: Record<string, TimelineLog[]> = {};
+                    allLogs.forEach((log: any) => {
+                        if (!map[log.complaint_id]) map[log.complaint_id] = [];
+                        map[log.complaint_id].push(log as TimelineLog);
+                    });
+                    setTimelinesMap(map);
+                }
+            }
+
             // If a detail is selected and in the list, update it too
             if (selectedId) {
                 const updatedSelected = grievances.find(g => g.id === selectedId);
@@ -94,33 +116,17 @@ const HODDashboard = () => {
         }
     }, [complaints.length, selectedId]);
 
-    const fetchDetail = useCallback(async (id: string) => {
-        setDetailLoading(true);
-        try {
-            // Find in current list first (already includes description and ai_summary)
-            const item = complaints.find(c => c.id === id);
-            if (item) setDetail(item);
-
-            // Fetch Timeline
-            const { data: logs } = await supabase
-                .from('v_complaint_timeline')
-                .select('*')
-                .eq('complaint_id', id)
-                .order('timestamp', { ascending: false });
-
-            setTimeline((logs as TimelineLog[]) || []);
-        } finally {
-            setDetailLoading(false);
-        }
-    }, [complaints]);
-
     useEffect(() => {
         fetchData();
     }, [fetchData]);
 
     useEffect(() => {
-        if (selectedId) fetchDetail(selectedId);
-    }, [selectedId, fetchDetail]);
+        if (selectedId) {
+            const item = complaints.find(c => c.id === selectedId);
+            if (item) setDetail(item);
+            setTimeline(timelinesMap[selectedId] || []);
+        }
+    }, [selectedId, complaints, timelinesMap]);
 
     const handleStatusUpdate = async (_e: React.MouseEvent | null, id: string, newStatus: string) => {
         if (_e) _e.stopPropagation();
@@ -179,7 +185,7 @@ const HODDashboard = () => {
                         )}
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xs font-black uppercase tracking-widest text-gray-400">Grievance queue</h2>
-                            <span className="px-2 py-0.5 bg-teal-50 text-teal-600 text-[10px] font-black rounded uppercase">CSE Live</span>
+                            <span className="px-2 py-0.5 bg-teal-50 text-teal-600 text-[10px] font-black rounded uppercase">{DEPT_CODE} Live</span>
                         </div>
                         
                         <div className="grid grid-cols-4 gap-3">
@@ -304,9 +310,7 @@ const HODDashboard = () => {
                             </div>
 
                             <div className="flex-1 overflow-y-auto p-8 lg:p-12 space-y-12">
-                                {detailLoading ? (
-                                    <div className="flex items-center justify-center h-full text-teal-600 font-black text-xs animate-pulse uppercase tracking-widest">Fetching full intelligence...</div>
-                                ) : detail && (
+                                {detail && (
                                     <>
                                         {/* Header Detail */}
                                         <header>
@@ -321,7 +325,7 @@ const HODDashboard = () => {
                                             </div>
                                             <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tighter leading-[1.1] mb-4">{detail.title}</h2>
                                             <div className="flex items-center text-[10px] font-bold text-gray-400 uppercase tracking-wide">
-                                                <Clock size={12} className="mr-1.5" /> Filed {detail.created_date} • CSE DEPARTMENT RECORD
+                                                <Clock size={12} className="mr-1.5" /> Filed {detail.created_date} • {DEPT_CODE} DEPARTMENT RECORD
                                             </div>
                                         </header>
 
@@ -367,12 +371,18 @@ const HODDashboard = () => {
                                                                         idx === 0 ? 'bg-teal-500 scale-125 shadow-[0_0_10px_rgba(20,184,166,0.5)]' : 'bg-gray-200'
                                                                     }`}></div>
                                                                     <div className="flex items-center justify-between mb-1">
-                                                                        <span className="text-[11px] font-black text-gray-900 uppercase tracking-tight">{log.action}</span>
+                                                                        <span className="text-[11px] font-black text-gray-900 uppercase tracking-tight">
+                                                                            {log.previous_status && log.new_status ? (
+                                                                                <span className="flex items-center">
+                                                                                    {log.previous_status} <ChevronRight size={10} className="mx-1 text-teal-500" /> {log.new_status}
+                                                                                </span>
+                                                                            ) : log.action}
+                                                                        </span>
                                                                         <span className="text-[9px] font-mono font-bold text-gray-400">{log.timestamp_display}</span>
                                                                     </div>
-                                                                    <p className="text-[10px] text-gray-500 font-medium">
-                                                                        {log.note || `Transitioned to ${log.new_status}`}
-                                                                        {log.actor_name && <span className="italic text-teal-600"> — {log.actor_name}</span>}
+                                                                    <p className="text-[10px] text-gray-500 font-medium lowercase tracking-tight">
+                                                                        {log.note || `Status synchronized by system`}
+                                                                        {log.actor_name && <span className="italic text-teal-600 font-black ml-2 uppercase text-[8px]">BY {log.actor_name}</span>}
                                                                     </p>
                                                                 </div>
                                                             ))
@@ -409,7 +419,7 @@ const HODDashboard = () => {
                                                     <h4 className="text-[9px] font-black uppercase text-emerald-700 tracking-widest mb-3">Department status</h4>
                                                     <div className="flex items-center space-x-2">
                                                         <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                                        <p className="text-[10px] text-emerald-800 font-black uppercase tracking-tight">Active Ownership: CSE HOD</p>
+                                                        <p className="text-[10px] text-emerald-800 font-black uppercase tracking-tight">Active Ownership: {DEPT_CODE} HOD</p>
                                                     </div>
                                                 </div>
                                             </aside>

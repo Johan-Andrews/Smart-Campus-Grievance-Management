@@ -193,55 +193,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return null;
     }
 
-    if (email.trim().toLowerCase() === 'hodcse@test.com' && password === 'password') {
-        const HOD_UID = 'a0000000-0000-0000-0000-000000000002';
-        const { data: profileData, error: profileError } = await supabase
-            .from('users')
-            .select(`
-                id,
-                name,
-                email,
-                role,
-                trust_score,
-                department_id,
-                departments (
-                    name,
-                    code
-                )
-            `)
-            .eq('id', HOD_UID)
-            .single();
+    const HOD_ACCOUNTS: Record<string, { id: string; deptId: string; deptName: string; deptCode: string }> = {
+      'hodcse@test.com':   { id: 'a0000000-0000-0000-0000-000000000002', deptId: 'd1000000-0000-0000-0000-000000000001', deptName: 'Computer Science',       deptCode: 'CSE' },
+      'hodeee@test.com':   { id: 'a0000000-0000-0000-0000-000000000003', deptId: 'd1000000-0000-0000-0000-000000000002', deptName: 'Electrical Engineering', deptCode: 'EEE' },
+      'hodmech@test.com':  { id: 'a0000000-0000-0000-0000-000000000004', deptId: 'd1000000-0000-0000-0000-000000000003', deptName: 'Mechanical Engineering', deptCode: 'MECH' },
+      'hodcivil@test.com': { id: 'a0000000-0000-0000-0000-000000000005', deptId: 'd1000000-0000-0000-0000-000000000004', deptName: 'Civil Engineering',      deptCode: 'CIVIL' },
+      'hodece@test.com':   { id: 'a0000000-0000-0000-0000-000000000006', deptId: 'd1000000-0000-0000-0000-000000000005', deptName: 'Electronics & Comm.',   deptCode: 'ECE' },
+    };
 
-        if (profileError || !profileData) {
-            return 'Mock HOD account not found in database.';
-        }
-
-        const dept = profileData.departments as { name: string; code: string } | null;
+    const lowerEmail = email.trim().toLowerCase();
+    if (HOD_ACCOUNTS[lowerEmail] && password === 'password') {
+        const acc = HOD_ACCOUNTS[lowerEmail];
         const profile: UserProfile = {
-            id:              profileData.id,
-            name:            profileData.name,
-            email:           profileData.email,
-            role:            profileData.role as Role,
-            trust_score:     profileData.trust_score,
-            department_id:   profileData.department_id,
-            department_name: dept?.name ?? null,
-            department_code: dept?.code ?? null,
+            id:              acc.id,
+            name:            `${acc.deptCode} HOD`,
+            email:           lowerEmail,
+            role:            'HOD',
+            trust_score:     5,
+            department_id:   acc.deptId,
+            department_name: acc.deptName,
+            department_code: acc.deptCode,
         };
 
         setUser(profile);
         setSession({ user: { id: profile.id, email: profile.email } } as any);
         localStorage.setItem('sb-mock-user', JSON.stringify(profile));
-
         navigate(ROLE_HOME[profile.role], { replace: true });
         return null;
     }
 
-    // Real Supabase Auth fallback — disabled as requested
-    /*
-    ...
-    */
-
-    return 'Only student@test.com, admin@test.com and hodcse@test.com are available in mock mode.';
+    return 'Only test@test.com accounts (student, admin, hodcse, hodeee, etc.) are available in mock mode.';
   }, [navigate]);
 
   // ── Logout ─────────────────────────────────────────────────
