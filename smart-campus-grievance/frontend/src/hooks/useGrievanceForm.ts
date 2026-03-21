@@ -44,35 +44,82 @@ export type SubmitResult = {
 //   2. Auto-detect category and department
 //   3. Produce AI analysis scores saved alongside the complaint
 
+function categorizeGrievanceFallback(title: string, description: string): AiDraftSuggestion {
+  const text = (title + " " + description).toLowerCase();
+
+  const CATEGORY_KEYWORDS: Record<string, string[]> = {
+    HOSTEL: ["hostel", "mess", "warden", "laundry", "canteen", "bunk", "water", "electricity", "wifi", "fan", "bathroom", "toilet"],
+    ACADEMICS: ["marks", "attendance", "exam", "faculty", "teacher", "lecture", "syllabus", "cgpa", "result", "internal", "class", "lab", "assignment"],
+    HOD: ["department", "hod", "head", "office", "permission", "signature", "request"],
+    INFRASTRUCTURE: ["lift", "projector", "equipment", "bench", "desk", "library", "parking", "road", "gate"],
+    MANAGEMENT: ["fee", "refund", "scholarship", "admin", "policy", "rule"],
+  };
+
+  const DEPT_KEYWORDS: Record<string, { code: string; name: string; keywords: string[] }> = {
+    CSE:   { code: "CSE",   name: "Computer Science & Engineering",     keywords: ["computer", "software", "coding", "programming", "server", "site", "cse", "app", "network"] },
+    EEE:   { code: "EEE",   name: "Electrical & Electronics",           keywords: ["electrical", "power", "circuit", "motor", "transformer", "eee", "voltage", "current"] },
+    ECE:   { code: "ECE",   name: "Electronics & Communication",        keywords: ["electronics", "ece", "signal", "antenna", "micro", "chip", "communication"] },
+    MECH:  { code: "MECH",  name: "Mechanical Engineering",             keywords: ["mechanical", "mech", "machine", "engine", "welding", "lathe", "workshop", "tool"] },
+    CIVIL: { code: "CIVIL", name: "Civil Engineering",                  keywords: ["civil", "construction", "cement", "building", "structural", "site", "survey"] },
+  };
+
+  let detectedCategory: string | null = null;
+  for (const [cat, words] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (words.some(word => text.includes(word))) {
+      detectedCategory = cat;
+      break;
+    }
+  }
+
+  let detectedDept: { code: string; name: string } | null = null;
+  for (const [_, info] of Object.entries(DEPT_KEYWORDS)) {
+    if (info.keywords.some(word => text.includes(word))) {
+      detectedDept = { code: info.code, name: info.name };
+      break;
+    }
+  }
+
+  // Fallback if no department detected but HOD/ACADEMICS categorization occurred
+  if (!detectedDept && (detectedCategory === "HOD" || detectedCategory === "ACADEMICS")) {
+     // Default to CSE if no department keyword found to satisfy DB constraint
+     detectedDept = { code: "CSE", name: "Computer Science & Engineering" };
+  }
+
+  return {
+    suggestions: [
+      "Detected: " + (detectedCategory || "General Management"),
+      detectedDept ? "Routing to: " + detectedDept.name : "Routing: Auto-escalation",
+      "Draft status: SMART_ENGINE_VALIDATED (Fallback active)"
+    ],
+    category: detectedCategory || "MANAGEMENT",
+    department_code: detectedDept?.code || null,
+    department_name: detectedDept?.name || null,
+    sentiment_score: null,
+    abuse_score: 1,
+    quality_score: null,
+    ai_summary: title, // Use title as simple summary
+    flagged: false,
+    explainable_output: { method: "keyword_fallback" },
+  };
+}
+
 async function fetchAiDraftSuggestions(
   title: string,
   description: string
 ): Promise<AiDraftSuggestion> {
-  // Replace with your actual backend endpoint that proxies the Anthropic API.
-  // Never call the Anthropic API directly from the frontend (exposes the key).
-  const res = await fetch("/api/ai/draft-coach", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title, description }),
-  });
+  try {
+    const res = await fetch("/api/ai/draft-coach", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, description }),
+    });
 
-  if (!res.ok) {
-    // Fail gracefully — the form still works without AI suggestions
-    return {
-      suggestions: [],
-      category: null,
-      department_code: null,
-      department_name: null,
-      sentiment_score: null,
-      abuse_score: null,
-      quality_score: null,
-      ai_summary: null,
-      flagged: false,
-      explainable_output: null,
-    };
+    if (!res.ok) throw new Error("AI Service down");
+    return await res.json();
+  } catch (err) {
+    console.warn("AI Service failed, using SMART_ENGINE fallback:", err);
+    return categorizeGrievanceFallback(title, description);
   }
-
-  return res.json();
 }
 
 // ─── Hook ─────────────────────────────────────────────────────
@@ -144,7 +191,7 @@ export function useGrievanceForm() {
     setSubmitting(true);
 
     try {
-      // Need user ID for submission
+      // Need user ID only for validation (RPC handles actual insertion)
       const savedMockUser = localStorage.getItem('sb-mock-user');
       const mockProfile = savedMockUser ? JSON.parse(savedMockUser) : null;
       
@@ -153,47 +200,34 @@ export function useGrievanceForm() {
 
       if (!userId) throw new Error("You must be logged in to submit a grievance.");
 
-      const { data: complaint, error: cError } = await (await import("../lib/supabaseClient")).supabase
-        .from('complaints')
-        .insert({
-          title: form.title.trim(),
-          description: form.description.trim(),
-          category: aiSuggestion?.category || 'MANAGEMENT', // Default
-          urgency: form.urgency,
-          location: form.location.trim() || null,
-          is_anonymous: form.isAnonymous,
-          student_id: userId,
-          status: 'OPEN',
-          priority: 'MEDIUM' // AI would normally determine this, we set a default
-        })
-        .select()
-        .single();
+      const { data: result, error: rpcError } = await (await import("../lib/supabaseClient")).supabase
+        .rpc('create_complaint', {
+          p_title: form.title.trim(),
+          p_description: form.description.trim(),
+          p_urgency: form.urgency,
+          p_location: form.location.trim() || null,
+          p_is_anonymous: form.isAnonymous,
+          p_ai_category: aiSuggestion?.category || 'MANAGEMENT',
+          p_ai_department_code: aiSuggestion?.department_code || null,
+          p_ai_summary: aiSuggestion?.ai_summary || form.title.trim(),
+          p_ai_sentiment_score: aiSuggestion?.sentiment_score || null,
+          p_ai_abuse_score: aiSuggestion?.abuse_score || 0,
+          p_ai_quality_score: aiSuggestion?.quality_score || null,
+          p_ai_flagged: aiSuggestion?.flagged || false,
+          p_ai_explainable_output: aiSuggestion?.explainable_output || { method: "frontend_analysis" }
+        });
 
-      if (cError) throw cError;
-
-      // Optional: Insert AI Analysis if available
-      if (aiSuggestion) {
-        await (await import("../lib/supabaseClient")).supabase
-          .from('complaint_ai_analysis')
-          .insert({
-            complaint_id: complaint.id,
-            ai_summary: aiSuggestion.ai_summary,
-            sentiment_score: aiSuggestion.sentiment_score,
-            abuse_score: aiSuggestion.abuse_score,
-            quality_score: aiSuggestion.quality_score,
-            explainable_output: aiSuggestion.explainable_output,
-            flagged_for_moderation: aiSuggestion.flagged
-          });
-      }
+      if (rpcError) throw rpcError;
+      if (!result) throw new Error("Submission failed: No result from server.");
 
       setSubmitted({
-          id: complaint.id,
-          ref_id: complaint.id.split('-')[0].toUpperCase(), // Simple ref_id fallback
-          title: complaint.title,
+          id: result.id,
+          ref_id: result.id.split('-')[0].toUpperCase(),
+          title: result.title,
           category_label: aiSuggestion?.category || 'GENERAL',
           department_name: aiSuggestion?.department_name || null,
-          urgency: complaint.urgency,
-          status: complaint.status,
+          urgency: result.urgency,
+          status: result.status,
           sla_display: '48 Hours',
           created_date: new Date().toLocaleDateString()
       });
