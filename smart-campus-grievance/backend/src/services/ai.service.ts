@@ -1,6 +1,6 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { pool } from '../db';
+import { v4 as uuidv4 } from 'uuid';
+import { RowDataPacket } from 'mysql2';
 
 export interface AiAnalysisResult {
     category: string;
@@ -113,19 +113,21 @@ export const processComplaintWithAI = async (
 export const checkRecurrentIssues = async (category: string, location: string) => {
     if (!location) return;
 
-    const pattern = await prisma.systemPattern.findFirst({
-        where: { issueType: category, location: location }
-    });
+    const [rows] = await pool.execute<RowDataPacket[]>(
+        'SELECT id, frequency FROM SystemPattern WHERE issueType = ? AND location = ? LIMIT 1',
+        [category, location]
+    );
 
-    if (pattern) {
-        await prisma.systemPattern.update({
-            where: { id: pattern.id },
-            data: { frequency: pattern.frequency + 1, lastDetected: new Date() }
-        });
-        // Systemic issue escalation logic can go here (e.g. notify admin)
+    if (rows.length > 0) {
+        const pattern = rows[0];
+        await pool.execute(
+            'UPDATE SystemPattern SET frequency = ?, lastDetected = NOW() WHERE id = ?',
+            [pattern.frequency + 1, pattern.id]
+        );
     } else {
-        await prisma.systemPattern.create({
-            data: { issueType: category, location: location, frequency: 1 }
-        });
+        await pool.execute(
+            'INSERT INTO SystemPattern (id, issueType, location, frequency, lastDetected) VALUES (?, ?, ?, 1, NOW())',
+            [uuidv4(), category, location]
+        );
     }
 };

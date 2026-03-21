@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { prisma } from '../index';
+import { pool } from '../db';
 import { z } from 'zod';
+import { v4 as uuidv4 } from 'uuid';
+import { RowDataPacket } from 'mysql2';
 
 const registerSchema = z.object({
     email: z.string().email(),
@@ -20,21 +22,20 @@ export const register = async (req: Request, res: Response) => {
     try {
         const data = registerSchema.parse(req.body);
 
-        const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
-        if (existingUser) return res.status(400).json({ error: 'Email already in use' });
+        const [existing] = await pool.execute<RowDataPacket[]>('SELECT * FROM User WHERE email = ?', [data.email]);
+        if (existing.length > 0) return res.status(400).json({ error: 'Email already in use' });
 
         const passwordHash = await bcrypt.hash(data.password, 10);
+        const id = uuidv4();
+        const role = data.role || 'STUDENT';
+        const department = data.department || null;
 
-        const user = await prisma.user.create({
-            data: {
-                email: data.email,
-                passwordHash,
-                role: data.role || 'STUDENT',
-                department: data.department
-            }
-        });
+        await pool.execute(
+            'INSERT INTO User (id, email, passwordHash, role, department) VALUES (?, ?, ?, ?, ?)',
+            [id, data.email, passwordHash, role, department]
+        );
 
-        res.status(201).json({ message: 'User created successfully', userId: user.id });
+        res.status(201).json({ message: 'User created successfully', userId: id });
     } catch (error: any) {
         console.error('Registration Error:', error);
         if (error instanceof z.ZodError) res.status(400).json({ error: error.issues });
@@ -46,7 +47,9 @@ export const login = async (req: Request, res: Response) => {
     try {
         const data = loginSchema.parse(req.body);
 
-        const user = await prisma.user.findUnique({ where: { email: data.email } });
+        const [users] = await pool.execute<RowDataPacket[]>('SELECT * FROM User WHERE email = ?', [data.email]);
+        const user = users[0];
+        
         if (!user) return res.status(400).json({ error: 'Invalid credentials' });
 
         const validPassword = await bcrypt.compare(data.password, user.passwordHash);
@@ -71,10 +74,11 @@ export const login = async (req: Request, res: Response) => {
 
 export const getMe = async (req: any, res: Response) => {
     try {
-        const user = await prisma.user.findUnique({
-            where: { id: req.user.id },
-            select: { id: true, email: true, role: true, department: true, createdAt: true } // omitting trust score
-        });
+        const [users] = await pool.execute<RowDataPacket[]>(
+            'SELECT id, email, role, department, createdAt FROM User WHERE id = ?', 
+            [req.user.id]
+        );
+        const user = users[0];
         if (!user) return res.status(404).json({ error: 'User not found' });
         res.status(200).json(user);
     } catch (error) {

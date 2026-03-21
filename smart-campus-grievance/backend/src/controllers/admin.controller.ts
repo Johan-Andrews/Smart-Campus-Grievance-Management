@@ -1,13 +1,34 @@
 import { Request, Response } from 'express';
-import { prisma } from '../index';
+import { pool } from '../db';
 import { AuthRequest } from '../middleware/auth';
+import { RowDataPacket } from 'mysql2';
 
 export const getModerationQueue = async (req: AuthRequest, res: Response) => {
     try {
-        const flagged = await prisma.complaintAiAnalysis.findMany({
-            where: { flaggedForModeration: true },
-            include: { complaint: true }
-        });
+        const [analysisRows] = await pool.execute<RowDataPacket[]>(`
+            SELECT a.*, c.title as complaint_title, c.description as complaint_desc, c.status as complaint_status
+            FROM ComplaintAiAnalysis a 
+            JOIN Complaint c ON a.complaintId = c.id
+            WHERE a.flaggedForModeration = 1
+        `);
+        
+        const flagged = analysisRows.map(row => ({
+            id: row.id,
+            complaintId: row.complaintId,
+            aiSummary: row.aiSummary,
+            sentimentScore: row.sentimentScore,
+            abuseScore: row.abuseScore,
+            qualityScore: row.qualityScore,
+            explainableOutput: typeof row.explainableOutput === 'string' ? JSON.parse(row.explainableOutput) : row.explainableOutput,
+            flaggedForModeration: true,
+            complaint: {
+                id: row.complaintId,
+                title: row.complaint_title,
+                description: row.complaint_desc,
+                status: row.complaint_status
+            }
+        }));
+
         res.status(200).json(flagged);
     } catch (error) {
         res.status(500).json({ error: 'Internal server error' });
@@ -16,31 +37,28 @@ export const getModerationQueue = async (req: AuthRequest, res: Response) => {
 
 export const getAnalytics = async (req: AuthRequest, res: Response) => {
     try {
-        // Basic stats for dashboard
-        const openCount = await prisma.complaint.count({ where: { status: 'OPEN' } });
-        const inProgressCount = await prisma.complaint.count({ where: { status: 'IN_PROGRESS' } });
-        const resolvedCount = await prisma.complaint.count({ where: { status: 'RESOLVED' } });
+        const [openRows] = await pool.execute<RowDataPacket[]>('SELECT COUNT(*) as cnt FROM Complaint WHERE status = "OPEN"');
+        const [inProgressRows] = await pool.execute<RowDataPacket[]>('SELECT COUNT(*) as cnt FROM Complaint WHERE status = "IN_PROGRESS"');
+        const [resolvedRows] = await pool.execute<RowDataPacket[]>('SELECT COUNT(*) as cnt FROM Complaint WHERE status = "RESOLVED"');
 
-        // SLA Violations (currently open/in-progress with SLA past due)
-        const slaViolations = await prisma.complaint.findMany({
-            where: {
-                status: { in: ['OPEN', 'IN_PROGRESS'] },
-                slaDeadline: { lt: new Date() }
-            },
-            select: { id: true, title: true, priority: true, slaDeadline: true }
-        });
+        const [slaViolations] = await pool.execute<RowDataPacket[]>(`
+            SELECT id, title, priority, slaDeadline 
+            FROM Complaint 
+            WHERE status IN ('OPEN', 'IN_PROGRESS') AND slaDeadline < NOW()
+        `);
 
-        // Patterns
-        const systemicIssues = await prisma.systemPattern.findMany({
-            where: { frequency: { gte: 3 } }, // Flag if happened 3 or more times
-            orderBy: { frequency: 'desc' }
-        });
+        const [systemicIssues] = await pool.execute<RowDataPacket[]>(`
+            SELECT * 
+            FROM SystemPattern 
+            WHERE frequency >= 3
+            ORDER BY frequency DESC
+        `);
 
         res.status(200).json({
             metrics: {
-                open: openCount,
-                inProgress: inProgressCount,
-                resolved: resolvedCount,
+                open: openRows[0].cnt,
+                inProgress: inProgressRows[0].cnt,
+                resolved: resolvedRows[0].cnt,
                 slaBreaches: slaViolations.length
             },
             slaViolations,

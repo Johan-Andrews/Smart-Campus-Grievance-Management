@@ -1,0 +1,67 @@
+-- Run this script in your MySQL interface (e.g. MySQL Workbench, phpMyAdmin, or CLI) 
+-- to create the necessary tables for the Smart Campus Grievance System.
+
+CREATE DATABASE IF NOT EXISTS smart_campus_db;
+USE smart_campus_db;
+
+CREATE TABLE IF NOT EXISTS User (
+    id VARCHAR(191) PRIMARY KEY,
+    email VARCHAR(191) UNIQUE NOT NULL,
+    passwordHash VARCHAR(191) NOT NULL,
+    role VARCHAR(191) NOT NULL DEFAULT 'STUDENT',
+    trustScore DOUBLE NOT NULL DEFAULT 5.0,
+    department VARCHAR(191) NULL,
+    createdAt DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+);
+
+CREATE TABLE IF NOT EXISTS Complaint (
+    id VARCHAR(191) PRIMARY KEY,
+    title VARCHAR(191) NOT NULL,
+    description TEXT NOT NULL,
+    category VARCHAR(191) NOT NULL,
+    urgency VARCHAR(191) NOT NULL,
+    location VARCHAR(191) NULL,
+    priority VARCHAR(191) NOT NULL DEFAULT 'LOW',
+    status VARCHAR(191) NOT NULL DEFAULT 'OPEN',
+    resolutionTime DATETIME(3) NULL,
+    slaDeadline DATETIME(3) NULL,
+    isAnonymous TINYINT(1) NOT NULL DEFAULT 0,
+    studentId VARCHAR(191) NULL,
+    assignedToId VARCHAR(191) NULL,
+    createdAt DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updatedAt DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    FOREIGN KEY (studentId) REFERENCES User(id) ON DELETE SET NULL ON UPDATE CASCADE,
+    FOREIGN KEY (assignedToId) REFERENCES User(id) ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS ComplaintAiAnalysis (
+    id VARCHAR(191) PRIMARY KEY,
+    complaintId VARCHAR(191) UNIQUE NOT NULL,
+    aiSummary VARCHAR(191) NULL,
+    sentimentScore DOUBLE NULL,
+    abuseScore DOUBLE NULL,
+    qualityScore DOUBLE NULL,
+    explainableOutput TEXT NULL,
+    flaggedForModeration TINYINT(1) NOT NULL DEFAULT 0,
+    FOREIGN KEY (complaintId) REFERENCES Complaint(id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS ComplaintLog (
+    id VARCHAR(191) PRIMARY KEY,
+    complaintId VARCHAR(191) NOT NULL,
+    action VARCHAR(191) NOT NULL,
+    changedById VARCHAR(191) NULL,
+    previousStatus VARCHAR(191) NULL,
+    newStatus VARCHAR(191) NULL,
+    timestamp DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    FOREIGN KEY (complaintId) REFERENCES Complaint(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (changedById) REFERENCES User(id) ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS SystemPattern (
+    id VARCHAR(191) PRIMARY KEY,
+    issueType VARCHAR(191) NOT NULL,
+    location VARCHAR(191) NOT NULL,
+    frequency INT NOT NULL DEFAULT 1,
+    lastDetected DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+);
