@@ -15,7 +15,6 @@ const NewComplaint = () => {
         submitted,
         showDepartmentHint
     } = useGrievanceForm();
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         await submit();

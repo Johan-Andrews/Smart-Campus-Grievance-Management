@@ -22,17 +22,20 @@ const ProtectedRoute = ({ children, allowedRoles }: Props) => {
 
   // Not logged in → send to login
   if (!user) {
+    console.log('ProtectedRoute: Redirecting to /login (user is null)');
     return <Navigate to="/login" replace />;
   }
 
   // Logged in but wrong role → send to their own dashboard
   if (allowedRoles && !allowedRoles.includes(user.role)) {
+    console.log('ProtectedRoute: Wrong role. User role:', user.role, 'Allowed roles:', allowedRoles);
     const home = { 
         STUDENT: '/student/dashboard', 
         ADMIN: '/admin/dashboard', 
         HOD: '/hod/dashboard', 
         FACULTY: '/faculty/dashboard' 
     }[user.role];
+    console.log('ProtectedRoute: Redirecting to', home);
     return <Navigate to={home} replace />;
   }
 

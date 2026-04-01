@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-// Mocked version — no Supabase dependency
+import { supabase } from '../lib/supabaseClient';
+// Real authentication version
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -191,12 +192,9 @@ export function useGrievanceForm() {
     setSubmitting(true);
 
     try {
-      // Need user ID only for validation (RPC handles actual insertion)
-      const savedMockUser = localStorage.getItem('sb-mock-user');
-      const mockProfile = savedMockUser ? JSON.parse(savedMockUser) : null;
-      
-      const { data: sessionData } = await (await import("../lib/supabaseClient")).supabase.auth.getSession();
-      const userId = sessionData?.session?.user?.id || mockProfile?.id;
+      // Get current session
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
 
       if (!userId) throw new Error("You must be logged in to submit a grievance.");
 

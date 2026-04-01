@@ -5,8 +5,7 @@ import { Loader2, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const LoginPage = () => {
-  const { login, loading: authLoading } = useAuth();
-  console.log('LoginPage: Render, authLoading=', authLoading);
+  const { login } = useAuth();
 
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
@@ -29,14 +28,7 @@ const LoginPage = () => {
     // On success, AuthContext.login() calls navigate() — no redirect needed here
   };
 
-  // Show nothing while session is being restored from localStorage
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Loader2 className="animate-spin text-blue-600" size={32} />
-      </div>
-    );
-  }
+
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center px-4">
