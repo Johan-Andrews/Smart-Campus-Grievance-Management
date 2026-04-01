@@ -9,9 +9,21 @@ import ComplaintDetail from './pages/ComplaintDetail';
 import FacultyDashboard from './pages/FacultyDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import HODDashboard from './pages/HODDashboard';
+import { Loader2 } from 'lucide-react';
 
 const AppRoutes = () => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="animate-spin text-blue-600 mx-auto mb-4" size={40} />
+          <p className="text-gray-500 font-medium">Loading Smart Campus...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Routes>
@@ -26,8 +38,8 @@ const AppRoutes = () => {
         ) : <Navigate to="/login" replace />
       } />
       
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<Register />} />
+      <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/register" element={user ? <Navigate to="/" replace /> : <Register />} />
       
       <Route path="/student/dashboard" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentDashboard /></ProtectedRoute>} />
       <Route path="/student/new" element={<ProtectedRoute allowedRoles={['STUDENT']}><NewComplaint /></ProtectedRoute>} />

@@ -21,11 +21,15 @@ const LoginPage = () => {
       return;
     }
 
-    setSubmitting(true);
-    const err = await login(email, password);
-    if (err) setError(err);
-    setSubmitting(false);
-    // On success, AuthContext.login() calls navigate() — no redirect needed here
+    try {
+      setSubmitting(true);
+      const err = await login(email, password);
+      if (err) setError(err);
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
 
@@ -107,14 +111,14 @@ const LoginPage = () => {
       </div>
 
       {/* Test credentials hint — remove in production */}
-      <div className="mt-6 w-full max-w-md bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800">
+      {/* <div className="mt-6 w-full max-w-md bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800">
         <p className="font-semibold mb-2">Test accounts</p>
         <div className="space-y-1 font-mono">
           <p>admin@test.com · password</p>
           <p>hodcse@test.com · password</p>
           <p>student@test.com · password</p>
         </div>
-      </div>
+      </div> */}
 
     </div>
   );

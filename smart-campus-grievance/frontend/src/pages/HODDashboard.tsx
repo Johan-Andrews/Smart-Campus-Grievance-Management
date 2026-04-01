@@ -170,7 +170,16 @@ const HODDashboard = () => {
                         <p className="text-xs font-black text-white leading-none uppercase tracking-widest">{user?.name || 'HOD User'}</p>
                         <p className="text-[9px] text-teal-400 font-bold uppercase tracking-tighter mt-1">{user?.department_name || 'Department'}</p>
                     </div>
-                    <button onClick={logout} className="px-4 py-2 text-[10px] font-black bg-red-600/20 text-red-500 rounded border border-red-500/20 hover:bg-red-600/30 transition uppercase tracking-widest">Terminate</button>
+                    <button 
+                        onClick={() => {
+                            if (window.confirm('Terminate administrative session?')) {
+                                logout();
+                            }
+                        }} 
+                        className="px-4 py-2 text-[10px] font-black bg-red-600/20 text-red-500 rounded border border-red-500/20 hover:bg-red-600/30 transition uppercase tracking-widest active:scale-95"
+                    >
+                        Terminate
+                    </button>
                 </div>
             </nav>
 
